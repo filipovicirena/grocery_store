@@ -46,12 +46,12 @@ exist. Run these scripts only against a development database.
 
 Sample accounts created by `initUsers`:
 
-| Role | Email | Password | Node |
-|---|---|---|---|
-| Manager | `maja.manager@company.com` | `maja123` | Srbija |
-| Manager | `jelena.manager@company.com` | `jelena123` | Vojvodina |
-| Manager | `petar.manager@company.com` | `petar123` | Detelinara |
-| Employee | `nikola.employee@company.com` | `nikola123` | Radnja 2 |
+| Role     | Email                         | Password    | Node       |
+| -------- | ----------------------------- | ----------- | ---------- |
+| Manager  | `maja.manager@company.com`    | `maja123`   | Srbija     |
+| Manager  | `jelena.manager@company.com`  | `jelena123` | Vojvodina  |
+| Manager  | `petar.manager@company.com`   | `petar123`  | Detelinara |
+| Employee | `nikola.employee@company.com` | `nikola123` | Radnja 2   |
 
 These are development credentials. Change or remove them before deploying the
 application.
@@ -98,17 +98,17 @@ Authorization: Bearer <token>
 All user routes are under `/api/users`. Except for login and the root status
 route, API operations require a valid bearer token.
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/users` | List users in the current user's node and descendants. Managers see both roles; employees see employees only. |
-| `POST` | `/api/users` | Create a user. Managers only; the new user must belong to the manager's node or a descendant. |
-| `GET` | `/api/users/node/:nodeId` | List users in one node. Managers see both roles; employees see employees only. |
-| `GET` | `/api/users/node/:nodeId/employees` | List employees in one node. |
-| `GET` | `/api/users/node/:nodeId/employees/descendants` | List employees in the specified node and its descendants. |
-| `GET` | `/api/users/node/:nodeId/managers` | List managers in one node. Managers only. |
-| `GET` | `/api/users/node/:nodeId/managers/descendants` | List managers in the specified node and its descendants. Managers only. |
-| `PATCH` | `/api/users/:id` | Partially update a user's name, email, role, or node. Managers only; target and destination node must be within the manager's hierarchy. |
-| `DELETE` | `/api/users/:id` | Delete a user. Managers only; target must be in the manager's hierarchy. |
+| Method   | Path                                            | Description                                                                                                                              |
+| -------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/users`                                    | List users in the current user's node and descendants. Managers see both roles; employees see employees only.                            |
+| `POST`   | `/api/users`                                    | Create a user. Managers only; the new user must belong to the manager's node or a descendant.                                            |
+| `GET`    | `/api/users/node/:nodeId`                       | List users in one node. Managers see both roles; employees see employees only.                                                           |
+| `GET`    | `/api/users/node/:nodeId/employees`             | List employees in one node.                                                                                                              |
+| `GET`    | `/api/users/node/:nodeId/employees/descendants` | List employees in the specified node and its descendants.                                                                                |
+| `GET`    | `/api/users/node/:nodeId/managers`              | List managers in one node. Managers only.                                                                                                |
+| `GET`    | `/api/users/node/:nodeId/managers/descendants`  | List managers in the specified node and its descendants. Managers only.                                                                  |
+| `PATCH`  | `/api/users/:id`                                | Partially update a user's name, email, role, or node. Managers only; target and destination node must be within the manager's hierarchy. |
+| `DELETE` | `/api/users/:id`                                | Delete a user. Managers only; target must be in the manager's hierarchy.                                                                 |
 
 Managers can only access users in their own node or descendants. Employees can
 only see employees in their own node or descendants and cannot create, update,

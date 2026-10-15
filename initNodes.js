@@ -4,20 +4,20 @@ const mongoose = require("mongoose");
 const Node = require("./models/node");
 
 const hierarchy = {
-  "Srbija": {
-    "Vojvodina": {
+  Srbija: {
+    Vojvodina: {
       "Severnbacki okrug": {
-        "Subotica": {
+        Subotica: {
           "Radnja 1": {},
         },
       },
       "Juznobacki okrug": {
         "Novi Sad": {
-          "Detelinara": {
+          Detelinara: {
             "Radnja 2": {},
             "Radnja 3": {},
           },
-          "Liman": {
+          Liman: {
             "Radnja 4": {},
             "Radnja 5": {},
           },
@@ -26,12 +26,12 @@ const hierarchy = {
     },
     "Grad Beograd": {
       "Novi Beograd": {
-        "Bezanija": {
+        Bezanija: {
           "Radnja 6": {},
         },
       },
-      "Vracar": {
-        "Neimar": {
+      Vracar: {
+        Neimar: {
           "Radnja 7": {},
         },
         "Crveni krst": {
@@ -44,37 +44,37 @@ const hierarchy = {
 };
 
 async function createNodes(tree, parentId = null) {
-    for (const name in tree) {
-        const children = tree[name];
+  for (const name in tree) {
+    const children = tree[name];
 
-        const node = await Node.create({
-            name: name,
-            parent: parentId
-        });
+    const node = await Node.create({
+      name: name,
+      parent: parentId,
+    });
 
-        console.log("Created node:", name);
+    console.log("Created node:", name);
 
-        await createNodes(children, node._id);
-    }
+    await createNodes(children, node._id);
+  }
 }
 async function initializeNodes() {
-    try {
-        await mongoose.connect(process.env.MONGODB_URI);
+  try {
+    await mongoose.connect(process.env.MONGODB_URI);
 
-        console.log("Connected to MongoDB Atlas");
+    console.log("Connected to MongoDB Atlas");
 
-        await Node.deleteMany({});
+    await Node.deleteMany({});
 
-        console.log("Existing nodes deleted");
+    console.log("Existing nodes deleted");
 
-        await createNodes(hierarchy);
+    await createNodes(hierarchy);
 
-        console.log("Node initialization complete");
-    } catch (error) {
-        console.error("Initialization failed:", error.message);
-    } finally {
-        await mongoose.disconnect();
-    }
+    console.log("Node initialization complete");
+  } catch (error) {
+    console.error("Initialization failed:", error.message);
+  } finally {
+    await mongoose.disconnect();
+  }
 }
 
 initializeNodes();
