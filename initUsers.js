@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const User = require("./models/user.js");
 const Node = require("./models/node.js");
-const node = require("./models/node.js");
 require("dotenv").config();
 
 const users = [
@@ -39,7 +38,7 @@ const users = [
 async function initializeUsers() {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log("Connected to MongoDB Atlas");
+    console.log("Connected to MongoDB");
     for (const user of users) {
       const node = await Node.findOne({ name: user.nodeName });
       if (!node) {
