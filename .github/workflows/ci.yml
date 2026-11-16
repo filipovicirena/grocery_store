@@ -60,3 +60,15 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+  build:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t grocery-store-api:${{ github.sha }} .
