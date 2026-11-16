@@ -25,6 +25,7 @@ jobs:
 
     env:
       TEST_MONGODB_URI: mongodb://localhost:27017/grocery_store_test
+      JWT_SECRET: test-secret-for-ci-only
 
     steps:
       - name: Check out repository
