@@ -1,6 +1,7 @@
 jest.setTimeout(30000);
 require("dotenv").config();
 
+const os = require("os");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const User = require("../models/user.js");
@@ -17,6 +18,9 @@ beforeAll(async () => {
   }
   await mongoose.connect(testUri, {
     serverSelectionTimeoutMS: 5000,
+    runtimeAdapters: {
+      os: os,
+    },
   });
 
   console.log(
