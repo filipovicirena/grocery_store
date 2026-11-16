@@ -23,16 +23,6 @@ beforeAll(async () => {
     },
   });
 
-  console.log(
-    "Mongoose connection readyState:",
-    mongoose.connection.readyState,
-  );
-  console.log("User model connection readyState:", User.db.readyState);
-  console.log("Node model connection readyState:", Node.db.readyState);
-
-  console.log("User uses default connection:", User.db === mongoose.connection);
-  console.log("Node uses default connection:", Node.db === mongoose.connection);
-
   await User.deleteMany({});
   await Node.deleteMany({});
 
