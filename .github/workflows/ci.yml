@@ -1,4 +1,5 @@
 name: Grocery Store CI
+
 permissions:
   contents: read
   packages: write
@@ -13,6 +14,7 @@ on:
 
 jobs:
   test:
+    name: Run Jest tests
     runs-on: ubuntu-latest
 
     services:
@@ -64,17 +66,59 @@ jobs:
       - name: Run tests
         run: npm test
 
-  build:
-    name: Build and publish Docker image
+  integration:
+    name: Docker Compose integration test
     runs-on: ubuntu-latest
     needs: test
+
+    env:
+      MONGO_ROOT_USERNAME: ci_admin
+      MONGO_ROOT_PASSWORD: ci_password_for_testing
+      JWT_SECRET: ci-only-test-secret
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Start Docker Compose
+        run: docker compose up -d --build
+
+      - name: Check running containers
+        run: docker compose ps
+
+      - name: Test API response
+        run: |
+          for i in {1..30}; do
+            if curl --fail http://localhost:3000/; then
+              echo "API is responding!"
+              exit 0
+            fi
+            echo "Waiting for API..."
+            sleep 2
+          done
+
+          echo "API did not respond in time"
+          exit 1
+
+      - name: Show container logs
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop Docker Compose
+        if: always()
+        run: docker compose down
+
+  publish:
+    name: Publish Docker image to GHCR
+    runs-on: ubuntu-latest
+    needs: integration
+    if: github.event_name == 'push'
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
-        if: github.event_name == 'push'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
             -u "${{ github.actor }}" \
@@ -88,7 +132,6 @@ jobs:
             .
 
       - name: Push Docker image
-        if: github.event_name == 'push'
         run: |
           docker push ghcr.io/${{ github.repository_owner }}/grocery-store-api:${{ github.sha }}
           docker push ghcr.io/${{ github.repository_owner }}/grocery-store-api:latest
