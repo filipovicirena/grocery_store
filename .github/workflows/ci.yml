@@ -1,0 +1,172 @@
+name: Grocery Store CI
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  push:
+    branches:
+      - devops/docker
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run Jest tests
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_MONGODB_URI: mongodb://localhost:27017/grocery_store_test
+      JWT_SECRET: test-secret-for-ci-only
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check MongoDB connection
+        run: |
+          node -e "
+            const mongoose = require('mongoose');
+
+            mongoose.connect(process.env.TEST_MONGODB_URI, {
+              serverSelectionTimeoutMS: 5000
+            })
+            .then(async () => {
+              console.log('MongoDB connection successful');
+              await mongoose.disconnect();
+            })
+            .catch(error => {
+              console.error('MongoDB connection failed:', error.message);
+              process.exit(1);
+            });
+          "
+
+      - name: Run tests
+        run: npm test
+
+  integration:
+    name: Docker Compose integration test
+    runs-on: ubuntu-latest
+    needs: test
+
+    env:
+      MONGO_ROOT_USERNAME: ci_admin
+      MONGO_ROOT_PASSWORD: ci_password_for_testing
+      JWT_SECRET: ci-only-test-secret
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Start Docker Compose
+        run: docker compose up -d --build
+
+      - name: Initialize database
+        run: |
+          docker compose exec -T api node initNodes.js
+          docker compose exec -T api node initUsers.js
+
+      - name: Check running containers
+        run: docker compose ps
+
+      - name: Wait for API to become ready
+        run: |
+          for i in {1..30}; do
+            if curl --silent --fail http://localhost:3000/; then
+              echo "API is ready!"
+              exit 0
+            fi
+
+            echo "Waiting for API..."
+            sleep 2
+          done
+
+          echo "API did not become ready in time"
+          exit 1
+
+      - name: Test login and database access
+        run: |
+          # Log in and extract the JWT token
+          response=$(curl --fail --silent --show-error \
+            -X POST http://localhost:3000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"maja.manager@company.com","password":"maja123"}')
+
+          echo "Login successful"
+
+          token=$(echo "$response" | jq -r '.token')
+
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "Login did not return a valid token"
+            exit 1
+          fi
+
+          # Retrieve users using the JWT token
+          users=$(curl --fail --silent --show-error \
+            http://localhost:3000/api/users \
+            -H "Authorization: Bearer $token")
+
+          echo "Users retrieved successfully"
+
+          # Verify that the response contains users
+          echo "$users" | jq -e 'length > 0' > /dev/null
+
+          echo "Login and database access successful!"
+
+      - name: Show container logs
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop Docker Compose
+        if: always()
+        run: docker compose down
+
+  publish:
+    name: Publish Docker image to GHCR
+    runs-on: ubuntu-latest
+    needs: integration
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            -u "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ghcr.io/${{ github.repository_owner }}/grocery-store-api:${{ github.sha }} \
+            -t ghcr.io/${{ github.repository_owner }}/grocery-store-api:latest \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/grocery-store-api:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/grocery-store-api:latest

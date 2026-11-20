@@ -1,5 +1,7 @@
+jest.setTimeout(30000);
 require("dotenv").config();
 
+const os = require("os");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const User = require("../models/user.js");
@@ -14,8 +16,12 @@ beforeAll(async () => {
   if (testUri === process.env.MONGODB_URI) {
     throw new Error("Tests must use a database separate from MONGODB_URI");
   }
-
-  await mongoose.connect(testUri);
+  await mongoose.connect(testUri, {
+    serverSelectionTimeoutMS: 5000,
+    runtimeAdapters: {
+      os: os,
+    },
+  });
 
   await User.deleteMany({});
   await Node.deleteMany({});
