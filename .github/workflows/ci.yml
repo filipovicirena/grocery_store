@@ -86,19 +86,49 @@ jobs:
       - name: Check running containers
         run: docker compose ps
 
-      - name: Test API response
+      - name: Wait for API to become ready
         run: |
           for i in {1..30}; do
-            if curl --fail http://localhost:3000/; then
-              echo "API is responding!"
+            if curl --silent --fail http://localhost:3000/; then
+              echo "API is ready!"
               exit 0
             fi
+
             echo "Waiting for API..."
             sleep 2
           done
 
-          echo "API did not respond in time"
+          echo "API did not become ready in time"
           exit 1
+
+      - name: Test login and database access
+        run: |
+          # Log in and extract the JWT token
+          response=$(curl --fail --silent --show-error \
+            -X POST http://localhost:3000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"maja.manager@company.com","password":"maja123"}')
+
+          echo "Login successful"
+
+          token=$(echo "$response" | jq -r '.token')
+
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "Login did not return a valid token"
+            exit 1
+          fi
+
+          # Retrieve users using the JWT token
+          users=$(curl --fail --silent --show-error \
+            http://localhost:3000/api/users \
+            -H "Authorization: Bearer $token")
+
+          echo "Users retrieved successfully"
+
+          # Verify that the response contains users
+          echo "$users" | jq -e 'length > 0' > /dev/null
+
+          echo "Login and database access successful!"
 
       - name: Show container logs
         if: failure()
