@@ -1,15 +1,50 @@
 # Grocery Store API
 
-A Node.js and Express API for managing grocery-store locations and users in a
-hierarchical organization. Users have either the `manager` or `employee` role
-and belong to a node in the location hierarchy stored in MongoDB.
+A Node.js, Express, and MongoDB API for managing users across a hierarchical
+grocery-store organization. Users can be either `manager` or `employee`, and
+each user belongs to a node in the location hierarchy.
+
+## Features
+
+- JWT-based authentication
+- Role-based access for managers and employees
+- Hierarchical node permissions
+- Manager and employee listing, creation, update, and deletion
+- MongoDB-backed users and location nodes
+- Docker and Docker Compose support
+- Jest and Supertest API tests
 
 ## Requirements
 
-- Node.js and npm
-- MongoDB (local or MongoDB Atlas)
+Choose one of these setup methods:
 
-## Setup
+- Node.js 24+ and npm, with a local or hosted MongoDB instance
+- Docker and Docker Compose
+
+## Environment variables
+
+Create a `.env` file in the project root. An example is available in
+`.env.example`.
+
+```env
+MONGODB_URI=mongodb://127.0.0.1:27017/grocery_store
+JWT_SECRET=replace-with-a-long-random-secret
+TEST_MONGODB_URI=mongodb://127.0.0.1:27017/grocery_store_test
+MONGO_ROOT_USERNAME=grocery_admin
+MONGO_ROOT_PASSWORD=replace-with-a-local-password
+```
+
+- `MONGODB_URI` — MongoDB connection used by the API.
+- `JWT_SECRET` — secret used to sign and verify login tokens.
+- `TEST_MONGODB_URI` — separate database for Jest tests.
+- `MONGO_ROOT_USERNAME` and `MONGO_ROOT_PASSWORD` — local MongoDB credentials
+  used by Docker Compose.
+
+The test setup requires `TEST_MONGODB_URI` to differ from `MONGODB_URI`.
+It deletes users and nodes from the test database before and after the suite,
+so never point it at data that needs to be preserved.
+
+## Run locally
 
 Install dependencies:
 
@@ -17,34 +52,99 @@ Install dependencies:
 npm install
 ```
 
-Create a `.env` file in the project root:
-
-```env
-MONGODB_URI=mongodb://127.0.0.1:27017/grocery_store
-JWT_SECRET=replace-this-with-a-long-random-secret
-TEST_MONGODB_URI=mongodb://127.0.0.1:27017/grocery_store_test
-```
-
-For MongoDB Atlas, use the connection URI provided by Atlas for
-`MONGODB_URI`. Use a separate database for `TEST_MONGODB_URI`; the test setup
-deletes and recreates its users and nodes. Do not point it at a database
-containing data you want to keep.
-
-## Initialize the database
-
-From the project root, create the location hierarchy and then seed sample
-users:
+Initialize the location hierarchy and sample users:
 
 ```bash
 npm run initNodes
 npm run initUsers
 ```
 
-`initNodes` deletes the existing nodes before creating the hierarchy.
-`initUsers` creates or updates the sample accounts and expects their nodes to
-exist. Run these scripts only against a development database.
+`initNodes` deletes every existing node and creates the full hierarchy.
+`initUsers` creates or updates four sample accounts. Run both scripts only
+against a development database.
 
-Sample accounts created by `initUsers`:
+Start the API:
+
+```bash
+npm start
+```
+
+For automatic restarts during development:
+
+```bash
+npm run dev
+```
+
+The API listens on `http://localhost:3000`.
+
+## Run with Docker Compose
+
+Set `JWT_SECRET`, `MONGO_ROOT_USERNAME`, and `MONGO_ROOT_PASSWORD` in `.env`,
+then run:
+
+```bash
+docker compose up --build
+```
+
+Docker Compose starts MongoDB 8.0 and the Node.js API. MongoDB data is stored
+in the `mongodb_data` volume. The API is available at
+`http://localhost:3000`.
+
+To stop the containers:
+
+```bash
+docker compose down
+```
+
+Add `-v` to also remove the MongoDB volume:
+
+```bash
+docker compose down -v
+```
+
+## Initialize Docker data
+
+After the containers are running, initialize the hierarchy and sample users:
+
+```bash
+docker compose exec api npm run initNodes
+docker compose exec api npm run initUsers
+```
+
+These commands are destructive for nodes and update the sample users. Do not run
+them against production data.
+
+## Location hierarchy
+
+The initialization script creates this hierarchy:
+
+```text
+Srbija
+├── Vojvodina
+│   ├── Severnbacki okrug
+│   │   └── Subotica
+│   │       └── Radnja 1
+│   └── Juznobacki okrug
+│       └── Novi Sad
+│           ├── Detelinara
+│           │   ├── Radnja 2
+│           │   └── Radnja 3
+│           └── Liman
+│               ├── Radnja 4
+│               └── Radnja 5
+└── Grad Beograd
+    ├── Novi Beograd
+    │   └── Bezanija
+    │       └── Radnja 6
+    └── Vracar
+        ├── Neimar
+        │   └── Radnja 7
+        └── Crveni krst
+            ├── Radnja 8
+            └── Radnja 9
+```
+
+## Sample accounts
 
 | Role     | Email                         | Password    | Node       |
 | -------- | ----------------------------- | ----------- | ---------- |
@@ -53,67 +153,72 @@ Sample accounts created by `initUsers`:
 | Manager  | `petar.manager@company.com`   | `petar123`  | Detelinara |
 | Employee | `nikola.employee@company.com` | `nikola123` | Radnja 2   |
 
-These are development credentials. Change or remove them before deploying the
-application.
+These credentials are for development only. Remove or change them before
+deploying the application.
 
-## Run the API
+## API overview
 
-```bash
-npm start
+### Root
+
+```http
+GET /
 ```
 
-The API listens on `http://localhost:3000`. For automatic restarts during
-development:
+Returns:
 
-```bash
-npm run dev
+```text
+Grocery store API is running
 ```
 
-The root endpoint `GET /` returns a short API status message.
-
-## Authentication
-
-Log in to receive a JSON Web Token:
+### Authentication
 
 ```http
 POST /api/auth/login
 Content-Type: application/json
-```
 
-```json
 {
   "email": "maja.manager@company.com",
   "password": "maja123"
 }
 ```
 
-Send the returned token to protected routes using:
+Successful login returns a JWT that expires after one hour:
+
+```json
+{
+  "message": "Login successful",
+  "token": "<jwt>"
+}
+```
+
+Send the token to protected routes as:
 
 ```http
 Authorization: Bearer <token>
 ```
 
-## User API
+Protected routes verify both the JWT and that the referenced user still exists.
+Tokens become invalid if the user is deleted or if `JWT_SECRET` changes.
 
-All user routes are under `/api/users`. Except for login and the root status
-route, API operations require a valid bearer token.
+## User routes
 
-| Method   | Path                                            | Description                                                                                                                              |
-| -------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/users`                                    | List users in the current user's node and descendants. Managers see both roles; employees see employees only.                            |
-| `POST`   | `/api/users`                                    | Create a user. Managers only; the new user must belong to the manager's node or a descendant.                                            |
-| `GET`    | `/api/users/node/:nodeId`                       | List users in one node. Managers see both roles; employees see employees only.                                                           |
-| `GET`    | `/api/users/node/:nodeId/employees`             | List employees in one node.                                                                                                              |
-| `GET`    | `/api/users/node/:nodeId/employees/descendants` | List employees in the specified node and its descendants.                                                                                |
-| `GET`    | `/api/users/node/:nodeId/managers`              | List managers in one node. Managers only.                                                                                                |
-| `GET`    | `/api/users/node/:nodeId/managers/descendants`  | List managers in the specified node and its descendants. Managers only.                                                                  |
-| `PATCH`  | `/api/users/:id`                                | Partially update a user's name, email, role, or node. Managers only; target and destination node must be within the manager's hierarchy. |
-| `DELETE` | `/api/users/:id`                                | Delete a user. Managers only; target must be in the manager's hierarchy.                                                                 |
+All routes under `/api/users` require authentication.
 
-Managers can only access users in their own node or descendants. Employees can
-only see employees in their own node or descendants and cannot create, update,
-or delete users. Passwords are not included in user responses and cannot be
-changed through the `PATCH` route. A manager cannot update their own account.
+| Method   | Path                                            | Access / description |
+| -------- | ----------------------------------------------- | -------------------- |
+| `GET`    | `/api/users`                                    | Current node and descendants. Managers see both roles; employees see employees only. |
+| `POST`   | `/api/users`                                    | Managers only. Creates a user in the manager's node or one of its descendants. |
+| `GET`    | `/api/users/node/:nodeId`                       | Users in one node. Managers see both roles; employees see employees only. Node must be within the caller's hierarchy. |
+| `GET`    | `/api/users/node/:nodeId/employees`             | Employees in exactly one node. |
+| `GET`    | `/api/users/node/:nodeId/employees/descendants` | Employees in the node and all descendants. |
+| `GET`    | `/api/users/node/:nodeId/managers`              | Managers in exactly one node. Managers only. |
+| `GET`    | `/api/users/node/:nodeId/managers/descendants`  | Managers in the node and all descendants. Managers only. |
+| `PATCH`  | `/api/users/:id`                                | Managers only. Updates a non-self user within the manager's hierarchy. Password updates are rejected. |
+| `DELETE` | `/api/users/:id`                                | Managers only. Deletes a user within the manager's hierarchy. |
+
+A manager can access nodes below its own node. An employee can only access
+employee users in its own node or descendants; employees cannot create, update,
+or delete users.
 
 ### Create a user
 
@@ -121,9 +226,7 @@ changed through the `PATCH` route. A manager cannot update their own account.
 POST /api/users
 Authorization: Bearer <token>
 Content-Type: application/json
-```
 
-```json
 {
   "name": "New Employee",
   "email": "new.employee@example.com",
@@ -133,28 +236,33 @@ Content-Type: application/json
 }
 ```
 
-### Partially update a user
+All fields are required. Valid roles are `employee` and `manager`. The destination
+node must be within the authenticated manager's node and descendants.
 
-Include only the fields that should change:
+### Update a user
 
 ```http
 PATCH /api/users/<user ObjectId>
 Authorization: Bearer <token>
 Content-Type: application/json
-```
 
-```json
 {
   "email": "updated.email@example.com"
 }
 ```
 
-### List employees for a node and descendants
+The update route accepts `name`, `email`, `role`, and `node`. It rejects password
+updates. A manager cannot update their own account. The target and destination
+node must remain within the manager's hierarchy.
+
+### Delete a user
 
 ```http
-GET /api/users/node/<node ObjectId>/employees/descendants
+DELETE /api/users/<user ObjectId>
 Authorization: Bearer <token>
 ```
+
+A successful deletion returns HTTP `204` with no response body.
 
 ## Tests
 
@@ -164,6 +272,31 @@ Run the Jest test suite:
 npm test
 ```
 
-Tests use `TEST_MONGODB_URI`. The setup clears the users and nodes in that
-database before creating test fixtures, then removes them when the suite
-finishes. Keep it separate from any database with data you need to preserve.
+The test script runs Jest serially and loads `tests/setup.js`. Test setup:
+
+- requires `TEST_MONGODB_URI`;
+- rejects the same database URI as `MONGODB_URI`;
+- clears users and nodes;
+- creates a test hierarchy and test users;
+- removes test users and nodes after the suite.
+
+## Project structure
+
+```text
+.
+├── app.js               Express app and route registration
+├── server.js            MongoDB connection and HTTP server startup
+├── routes/
+│   ├── auth.js          Login route
+│   └── users.js         User and hierarchy routes
+├── middleware/auth.js   JWT authentication middleware
+├── models/
+│   ├── node.js          Hierarchical location node model
+│   └── user.js          User model
+├── utils/nodeHelpers.js Hierarchy traversal helper
+├── initNodes.js         Node hierarchy seed script
+├── initUsers.js         Sample user seed script
+├── tests/               Jest/Supertest suite and setup
+├── Dockerfile           Node.js 24 container image
+└── compose.yaml         API and MongoDB Compose services
+```
